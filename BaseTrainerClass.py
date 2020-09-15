@@ -21,4 +21,3 @@ class TrainerClass(ABC):
     @abstractmethod
     def get_optimizer_scheduler(self):
         pass
-    

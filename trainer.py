@@ -67,18 +67,10 @@ class Trainer():
             "validation_batch_size":None,
             "validation_freq":1,
             "checkpoint_every_n_steps":None,
+            "shuffle":True,
         }
-
-        logging_dir = os.path.join(Path(__file__).parent.absolute(), self.cfg["experiment_path"], 'info.log')
-
-        logging.StreamHandler(stream=None)
-        logger = logging.getLogger()
-
-        fhandler = logging.FileHandler(filename=logging_dir, mode='a')
-        formatter = logging.Formatter('%(asctime)s - %(process)d -  %(message)s')
-        fhandler.setFormatter(formatter)
-        logger.addHandler(fhandler)
-        logger.setLevel(logging.INFO)
+        
+        self.__set_logger()
 
         if self.cfg["use_apex"]:
             opt_level = self.cfg["apex_opt_level"]
@@ -89,6 +81,18 @@ class Trainer():
             
         self.train_df = None
         self.valid_df = pd.DataFrame(columns=["epoch", "loss", "avg_metric"])
+        
+    def __set_logger(self):
+        logging_dir = os.path.join(Path(__file__).parent.absolute(), self.cfg["experiment_path"], 'info.log')
+
+        logging.StreamHandler(stream=None)
+        logger = logging.getLogger()
+
+        fhandler = logging.FileHandler(filename=logging_dir, mode='a')
+        formatter = logging.Formatter('%(asctime)s - %(process)d -  %(message)s')
+        fhandler.setFormatter(formatter)
+        logger.addHandler(fhandler)
+        logger.setLevel(logging.INFO)
         
     def __get_learning_rate(self):
         lr=[]
@@ -127,7 +131,7 @@ class Trainer():
         
     def __train_one_epoch(self, dataloader):
         epochs = self.settings["epochs"]
-        #self.model.train()
+        self.model.model.train()
         torch.set_grad_enabled(True)
             
         dl_iter = iter(dataloader)
@@ -181,7 +185,7 @@ class Trainer():
                 saving_best=True
                 logging.info("saving best model with loss {}" .format(self.metric_container["loss"].avg))
                 self.best_loss = self.metric_container["loss"].avg
-                torch.save(self.model.state_dict(), os.path.join(self.cfg["save_path"], "best_model_checkpoint.pth"))
+                torch.save(self.model.model.state_dict(), os.path.join(self.cfg["save_path"], "best_model_checkpoint.pth"))
                 self.cfg["experiment"].register_result("best_loss", self.metric_container["loss"].avg)
 
             #registering last loss
@@ -203,7 +207,7 @@ class Trainer():
         epochs = self.settings["epochs"]
         validation_sum_loss = AverageMeter()
         val_metric = AverageMeter()
-        #self.model.eval()
+        self.model.model.eval()
         
         pred_coords_list = []
         confidences_list = []
@@ -248,12 +252,12 @@ class Trainer():
                 
                 logging.info("saving best model with epoch {} validation metric {} as {}" .format(self.current_epoch, val_metric.avg, file_name))
                 self.best_validation_metric = val_metric.avg
-                torch.save(self.model.state_dict(), os.path.join(self.cfg["save_path"], file_name))
+                torch.save(self.model.model.state_dict(), os.path.join(self.cfg["save_path"], file_name))
                 self.cfg["experiment"].register_result("best_validation_loss", validation_sum_loss.avg)
                 self.cfg["experiment"].register_result("best_validation_metric", val_metric.avg)
                 
     def __predict_outputs(self, dataloader):
-        self.model.eval()
+        self.model.model.eval()
         
         output_values = []
         
@@ -271,17 +275,17 @@ class Trainer():
     
     def save(self, path):
         logging.info("saving checkpoint to {}" .format(path))
-        self.model.eval()
+        self.model.model.eval()
         
         save_dict = {
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': self.model.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epoch': self.current_epoch,
             'best_loss': self.best_loss,
         }
         
-        if self.step_scheduler!=None:
-            save_dict["scheduler_state_dict"] = self.step_scheduler.state_dict()
+        if self.cfg["step_scheduler"]!=None:
+            save_dict["scheduler_state_dict"] = self.scheduler.state_dict()
         
         if self.cfg["use_apex"]:
             save_dict["amp"] =  amp.state_dict()
@@ -291,33 +295,35 @@ class Trainer():
     def load(self, path):
         logging.info("loading checkpoint from {}" .format(path))
         checkpoint = torch.load(path)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
         self.current_epoch = checkpoint['epoch']+1
         self.best_loss = checkpoint['best_loss']
         
-        if self.step_scheduler!=None:
-            self.step_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if self.cfg["step_scheduler"]!=None:
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             
         if self.cfg["use_apex"]:
             amp.load_state_dict(checkpoint['amp'])
             
-    def fit(self, train_dataloader=None, batch_size=None, epochs=1, validation_dataloader=None, steps_per_epoch=None, validation_steps=None, validation_batch_size=None, validation_freq=1, checkpoint_every_n_steps=None, validation_metric='loss'):
+    def fit(self, train_dataset=None, batch_size=None, epochs=1, validation_dataset=None, steps_per_epoch=None, validation_steps=None, validation_batch_size=None, validation_freq=1, checkpoint_every_n_steps=None, validation_metric='loss', shuffle=True, num_workers=0):
         """
         Method used for training model with following parameters:
         
         Parameters:
-            :param Dataloader train_dataloader: Dataloader for model.
+            :param torch.utils.data.Dataset train_dataset: Dataset for model.
             :param int batch_size: batch size that should be used during training/validation
             :param int epochs: NUmber of epochs to train
-            :param DataLoader validation_dataloader: Dataloader for validation data
+            :param torch.utils.data.Dataset validation_dataset: Dataset for validation data
             :param int steps_per_epoch: training steps that should be performed each epoch. If not specified whole training set would be used
             :param int validation_steps: validation steps that should be  performed each validation phase. If not specified, whole validation set would be used
             :param int validation_batch_size: Batch size for validation step. If not set, training batch size would be used
             :param int validation_freq:After how many epochs validation should be performed
             :param int checkpoint_every_n_steps: should be set if we want to save model in given timesteps interval
-            :param str validation_metric: metric that should be checkd after validation to see if result is better.
+            :param str validation_metric: metric that should be checkd after validation to see if result is better
+            :param bool shuffle: should dataset be shuffled during training
+            :param int num_workers: number of workers to use during training
             
         Returns:
             None
@@ -326,28 +332,35 @@ class Trainer():
         assert(self.model != None)
         assert(self.optimizer !=None)
         assert(batch_size!=None)
-        assert(train_dataloader!=None)
+        assert(train_dataset!=None)
         
         self.settings["batch_size"]=batch_size
         self.settings["epochs"]=epochs
+        self.settings["shuffle"]=shuffle
+        
+        train_dataloader = torch.utils.data.DataLoader(train_dataset,
+                                                  shuffle=shuffle, 
+                                                  batch_size=batch_size, 
+                                                  num_workers=num_workers)
         
         if steps_per_epoch==None:
             self.settings["steps_per_epoch"]=len(train_dataloader)
         else:
             self.settings["steps_per_epoch"]=steps_per_epoch
-        
-        if validation_dataloader!=None:
-            self.settings["validation_steps"]=len(validation_dataloader)
-        else:
-            self.settings["validation_steps"]=validation_steps
-        
+            
         if validation_batch_size==None:
             self.settings["validation_batch_size"]=batch_size
         else:
             self.settings["validation_batch_size"]=validation_batch_size
         
-        
-        self.settings["validation_freq"]=validation_freq
+        if validation_dataset!=None:
+            validation_dataloader = torch.utils.data.DataLoader(validation_dataset, 
+                                                               shuffle=shuffle,
+                                                               batch_size=self.settings["validation_batch_size"],
+                                                               num_workers=num_workers)
+            self.settings["validation_steps"]=len(validation_dataloader)  
+            self.settings["validation_freq"]=validation_freq
+            
         self.settings["checkpoint_every_n_steps"]=checkpoint_every_n_steps
         
         logging.info("Training settings:")
