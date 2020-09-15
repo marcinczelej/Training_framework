@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict
 
 from tqdm import tqdm
+from torch import Tensor
 
 from ranger import Ranger
 
@@ -27,8 +28,9 @@ import pickle
 import torchvision.models as models
 
 from mag.experiment import Experiment
+from schedulers import get_flat_cosine_schedule
 
-from trainer import *
+from trainer import Trainer
 
 from l5kit.data import LocalDataManager, ChunkedDataset
 from l5kit.dataset import AgentDataset, EgoDataset
@@ -41,7 +43,7 @@ from collections import OrderedDict
 from BaseTrainerClass import TrainerClass
 
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -54,22 +56,22 @@ print(torch.cuda.is_available())
 """
 
 Params = {
-    "step_scheduler": True, 
+    "step_scheduler": True,
     "epoch_scheduler": False,
-    "EPOCHS": 1, 
-    "optimizer":"Ranger_flat_cosine",
+    "EPOCHS": 1,
+    "optimizer": "Ranger_flat_cosine",
     "learning_rate": 1e-4,
     "net_type": "Resnet18",
 }
 
 trainer_params = {
-    "data_path" : "data",
-    "save_path" : "checkpoints",
-    "checkpoint_path" : "checkpoints/best_model_checkpoint.pth",
+    "data_path": "data",
+    "save_path": "checkpoints",
+    "checkpoint_path": "checkpoints/best_model_checkpoint.pth",
     "experiment_path": "data",
     "experiment": None,
     "apex_opt_level": "01",
-    "use_apex":False,
+    "use_apex": False,
     "description": "",
     "step_scheduler": True,
     "validation_scheduler": False,
@@ -81,38 +83,28 @@ trainer_params = {
 """
 
 train_cfg = {
-    'format_version': 4,
-    'model_params': {
-        'model_architecture': 'resnet50',
-        'history_num_frames': 10,
-        'history_step_size': 1,
-        'history_delta_time': 0.1,
-        'future_num_frames': 50,
-        'future_step_size': 1,
-        'future_delta_time': 0.1
+    "format_version": 4,
+    "model_params": {
+        "model_architecture": "resnet50",
+        "history_num_frames": 10,
+        "history_step_size": 1,
+        "history_delta_time": 0.1,
+        "future_num_frames": 50,
+        "future_step_size": 1,
+        "future_delta_time": 0.1,
     },
-    
-    'raster_params': {
-        'raster_size': [400, 400],
-        'pixel_size': [0.5, 0.5],
-        'ego_center': [0.25, 0.5],
-        'map_type': 'py_semantic',
-        'satellite_map_key': 'aerial_map/aerial_map.png',
-        'semantic_map_key': 'semantic_map/semantic_map.pb',
-        'dataset_meta_key': 'meta.json',
-        'filter_agents_threshold': 0.5
+    "raster_params": {
+        "raster_size": [400, 400],
+        "pixel_size": [0.5, 0.5],
+        "ego_center": [0.25, 0.5],
+        "map_type": "py_semantic",
+        "satellite_map_key": "aerial_map/aerial_map.png",
+        "semantic_map_key": "semantic_map/semantic_map.pb",
+        "dataset_meta_key": "meta.json",
+        "filter_agents_threshold": 0.5,
     },
-    
-    'data_loader_data': {
-        'key': 'scenes/train.zarr',
-        'batch_size': 4,
-        'shuffle': True,
-        'num_workers': 0
-    },
-    
-    'train_params': {
-        'max_num_steps': 132,
-    }
+    "data_loader_data": {"key": "scenes/train.zarr", "batch_size": 4, "shuffle": True, "num_workers": 0},
+    "train_params": {"max_num_steps": 132},
 }
 
 """
@@ -121,34 +113,26 @@ train_cfg = {
 """
 
 test_cfg = {
-    'format_version': 4,
-    'model_params': {
-        'history_num_frames': 10,
-        'history_step_size': 1,
-        'history_delta_time': 0.1,
-        'future_num_frames': 50,
-        'future_step_size': 1,
-        'future_delta_time': 0.1
+    "format_version": 4,
+    "model_params": {
+        "history_num_frames": 10,
+        "history_step_size": 1,
+        "history_delta_time": 0.1,
+        "future_num_frames": 50,
+        "future_step_size": 1,
+        "future_delta_time": 0.1,
     },
-    
-    'raster_params': {
-        'raster_size': [400, 400],
-        'pixel_size': [0.1, 0.1],
-        'ego_center': [0.25, 0.5],
-        'map_type': 'py_semantic',
-        'satellite_map_key': 'aerial_map/aerial_map.png',
-        'semantic_map_key': 'semantic_map/semantic_map.pb',
-        'dataset_meta_key': 'meta.json',
-        'filter_agents_threshold': 0.5
+    "raster_params": {
+        "raster_size": [400, 400],
+        "pixel_size": [0.1, 0.1],
+        "ego_center": [0.25, 0.5],
+        "map_type": "py_semantic",
+        "satellite_map_key": "aerial_map/aerial_map.png",
+        "semantic_map_key": "semantic_map/semantic_map.pb",
+        "dataset_meta_key": "meta.json",
+        "filter_agents_threshold": 0.5,
     },
-    
-    'data_loader_data': {
-        'key': 'scenes/test.zarr',
-        'batch_size': 256,
-        'shuffle': False,
-        'num_workers': 0
-    }
-
+    "data_loader_data": {"key": "scenes/test.zarr", "batch_size": 256, "shuffle": False, "num_workers": 0},
 }
 
 """
@@ -156,7 +140,7 @@ test_cfg = {
 
 """
 
-SINGLE_SUB_PATH = os.path.join(trainer_params["data_path"], "single_mode_sample_submission.csv"),
+SINGLE_SUB_PATH = (os.path.join(trainer_params["data_path"], "single_mode_sample_submission.csv"),)
 MULTI_SUB_PATH = os.path.join(trainer_params["data_path"], "multi_mode_sample_submission.csv")
 
 # Setting env variable for L5KIT ( LYFT framework )
@@ -168,6 +152,7 @@ data_Manager = LocalDataManager(None)
 
 """
 
+
 def set_experiment(resume_path=None):
     experiment_config = {
         "model": {
@@ -176,23 +161,23 @@ def set_experiment(resume_path=None):
             "_step_scheduler": False,
             "learning_rate": Params["learning_rate"],
             "batch_size": train_cfg["data_loader_data"]["batch_size"],
-            "epochs": Params["EPOCHS"]
+            "epochs": Params["EPOCHS"],
         },
         "config": {
             "img_size": train_cfg["raster_params"]["raster_size"][0],
-            "pixel_size": train_cfg["raster_params"]["pixel_size"][0], 
-            "map_type": train_cfg["raster_params"]["map_type"], 
-            "steps": "train_ALL", 
-            '_history_num_frames': 10,
-            '_history_step_size': 1,
-            '_history_delta_time': 0.1,
-            '_future_num_frames': 50,
-            '_future_step_size': 1,
-            '_future_delta_time': 0.1,
-        }
+            "pixel_size": train_cfg["raster_params"]["pixel_size"][0],
+            "map_type": train_cfg["raster_params"]["map_type"],
+            "steps": "train_ALL",
+            "_history_num_frames": 10,
+            "_history_step_size": 1,
+            "_history_delta_time": 0.1,
+            "_future_num_frames": 50,
+            "_future_step_size": 1,
+            "_future_delta_time": 0.1,
+        },
     }
-    
-    if resume_path == None:
+
+    if resume_path is None:
         experiment = Experiment(experiment_config)
     else:
         experiment = Experiment(resume_from=resume_path)
@@ -200,23 +185,18 @@ def set_experiment(resume_path=None):
     trainer_params["save_path"] = experiment.checkpoints
     trainer_params["experiment_path"] = os.path.join("experiments", experiment.config.identifier)
     trainer_params["experiment"] = experiment
-    
+
+
 """
 =================================CREATING LOSS FN=================================
 
-"""  
+"""
 
 # --- Function utils ---
-# Original code from https://github.com/lyft/l5kit/blob/20ab033c01610d711c3d36e1963ecec86e8b85b6/l5kit/l5kit/evaluation/metrics.py
-import numpy as np
-
-import torch
-from torch import Tensor
+# Original code from https://github.com/lyft/l5kit/blob/20ab033c01610d711c3d36e1963ecec86e8b85b6/l5kit/l5kit/evaluation/metrics.py # noqa: E501
 
 
-def pytorch_neg_multi_log_likelihood_batch(
-    gt: Tensor, pred: Tensor, confidences: Tensor, avails: Tensor
-) -> Tensor:
+def pytorch_neg_multi_log_likelihood_batch(gt: Tensor, pred: Tensor, confidences: Tensor, avails: Tensor) -> Tensor:
     """
     Compute a negative log-likelihood for the multi-modal scenario.
     log-sum-exp trick is used here to avoid underflow and overflow, For more information about it see:
@@ -234,9 +214,15 @@ def pytorch_neg_multi_log_likelihood_batch(
     assert len(pred.shape) == 4, f"expected 3D (MxTxC) array for pred, got {pred.shape}"
     batch_size, num_modes, future_len, num_coords = pred.shape
 
-    assert gt.shape == (batch_size, future_len, num_coords), f"expected 2D (Time x Coords) array for gt, got {gt.shape}"
+    assert gt.shape == (
+        batch_size,
+        future_len,
+        num_coords,
+    ), f"expected 2D (Time x Coords) array for gt, got {gt.shape}"
     assert confidences.shape == (batch_size, num_modes), f"expected 1D (Modes) array for gt, got {confidences.shape}"
-    assert torch.allclose(torch.sum(confidences, dim=1), confidences.new_ones((batch_size,))), "confidences should sum to 1"
+    assert torch.allclose(
+        torch.sum(confidences, dim=1), confidences.new_ones((batch_size,))
+    ), "confidences should sum to 1"
     assert avails.shape == (batch_size, future_len), f"expected 1D (Time) array for gt, got {avails.shape}"
     # assert all data are valid
     assert torch.isfinite(pred).all(), "invalid value found in pred"
@@ -263,9 +249,7 @@ def pytorch_neg_multi_log_likelihood_batch(
     return torch.mean(error)
 
 
-def pytorch_neg_multi_log_likelihood_single(
-    gt: Tensor, pred: Tensor, avails: Tensor
-) -> Tensor:
+def pytorch_neg_multi_log_likelihood_single(gt: Tensor, pred: Tensor, avails: Tensor) -> Tensor:
     """
 
     Args:
@@ -281,13 +265,13 @@ def pytorch_neg_multi_log_likelihood_single(
     confidences = pred.new_ones((batch_size, 1))
     return pytorch_neg_multi_log_likelihood_batch(gt, pred.unsqueeze(1), confidences, avails)
 
+
 """
 =========================================== CREATING DATALOADERS/DATASETS ===========================================
 """
-    
-    
+
+
 class LyftImageDataset(torch.utils.data.Dataset):
-    
     def __init__(self, data_folder, data_list):
         super().__init__()
         self.data_folder = data_folder
@@ -297,80 +281,88 @@ class LyftImageDataset(torch.utils.data.Dataset):
         return self.obj_load(self.files[index])
 
     def obj_load(self, name):
-        with bz2.BZ2File(f'{self.data_folder}/{name}', 'rb') as f:
+        with bz2.BZ2File(f"{self.data_folder}/{name}", "rb") as f:
             return pickle.load(f)
 
     def __len__(self):
         return len(self.files)
-    
+
+
 def create_ds_images(cfg: Dict, split_data):
-    train_data_dir = os.path.join('cache', "pre_{}px__{}__ALL".format(train_cfg["raster_params"]["raster_size"][0], int(train_cfg["raster_params"]["pixel_size"][0]*100)))
-    
+    train_data_dir = os.path.join(
+        "cache",
+        "pre_{}px__{}__ALL".format(
+            train_cfg["raster_params"]["raster_size"][0], int(train_cfg["raster_params"]["pixel_size"][0] * 100)
+        ),
+    )
+
     all_files = []
-    
+
     for filename in os.listdir(train_data_dir):
         all_files.append(filename)
-    
-    valid_dataloader = None
-    
+
     if split_data:
         train_data, validate_data = train_test_split(all_files, shuffle=True, test_size=0.1)
-        
+
         valid_dataset = LyftImageDataset(train_data_dir, validate_data)
 
     else:
         train_data = all_files
-    
+
     train_dataset = LyftImageDataset(train_data_dir, train_data)
-    
+
     return train_dataset, valid_dataset
+
 
 """
 =================================MODEL ETC=================================
 
 """
 
+
 class LyftModel(nn.Module):
     def __init__(self, cfg: Dict):
-        super(LyftModel, self).__init__()
-        
-        self.backbone = models.resnet.resnet18(pretrained=True, 
-                                               progress=True,
-                                              )
-        
-        #print(self.backbone)
-        
+        super().__init__()
+
+        self.backbone = models.resnet.resnet18(pretrained=True, progress=True,)
+
+        # print(self.backbone)
+
         # input channels size to match rasterizer shape
-        num_history_channels = (cfg["model_params"]["history_num_frames"] + 1)*2
+        num_history_channels = (cfg["model_params"]["history_num_frames"] + 1) * 2
         input_channels = 3 + num_history_channels
-        
-        self.backbone.conv1 = nn.Conv2d(input_channels, 
-                                       self.backbone.conv1.out_channels, 
-                                       kernel_size=self.backbone.conv1.kernel_size, 
-                                       stride=self.backbone.conv1.stride,
-                                       padding=self.backbone.conv1.padding,
-                                       bias=False,
-                                       )
-        
+
+        self.backbone.conv1 = nn.Conv2d(
+            input_channels,
+            self.backbone.conv1.out_channels,
+            kernel_size=self.backbone.conv1.kernel_size,
+            stride=self.backbone.conv1.stride,
+            padding=self.backbone.conv1.padding,
+            bias=False,
+        )
+
         # output_size to (X, y) * number of future states
-        
-        self.num_modes=3
+
+        self.num_modes = 3
         self.future_len = cfg["model_params"]["future_num_frames"]
-        self.output_size = 2 * self.future_len *self.num_modes
-        
-        self.head = nn.Sequential(OrderedDict([
-                            ('head_Flatten', nn.Flatten()),
-                            ('head_Linear_1', nn.Linear(in_features=self.backbone.fc.in_features, out_features=4096)),
-                            ('head_ELU', nn.ELU()), 
-                            ('head_Linear_out', nn.Linear(in_features=4096, out_features=self.output_size+self.num_modes)),
-        ]))
-        
+        self.output_size = 2 * self.future_len * self.num_modes
+
+        self.head = nn.Sequential(
+            OrderedDict(
+                [
+                    ("head_Flatten", nn.Flatten()),
+                    ("head_Linear_1", nn.Linear(in_features=self.backbone.fc.in_features, out_features=4096)),
+                    ("head_ELU", nn.ELU()),
+                    ("head_Linear_out", nn.Linear(in_features=4096, out_features=self.output_size + self.num_modes)),
+                ]
+            )
+        )
+
         self.backbone.fc = self.head
 
     def forward(self, x):
         x_out = self.backbone(x)
         bs, _ = x_out.shape
-
 
         pred, confidences = torch.split(x_out, self.output_size, dim=1)
         pred = pred.view(bs, self.num_modes, self.future_len, 2)
@@ -378,53 +370,44 @@ class LyftModel(nn.Module):
         confidences = torch.softmax(confidences, dim=1)
         return pred, confidences
 
-def get_flat_cosine_schedule(optimizer, num_training_steps, percentege_of_const=0.7, num_cycles=0.5, last_epoch=-1):
-    """
-        Before percentage_of_const get constant lr,
-        then do cosine decay till ends
-    """
-    
-    def lr_lambda(current_step):
-        if current_step < int(num_training_steps*percentege_of_const):
-            #print(current_step, " returning 1")
-            return 1.0
-        progress = float(current_step - num_training_steps*percentege_of_const) / float(max(1, num_training_steps - num_training_steps*percentege_of_const))
-        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
-
-    return LambdaLR(optimizer, lr_lambda, last_epoch)       
 
 """
 =================================PREDICTION METHOD=================================
 """
+
 
 def make_prediction(prediction_data):
     pred_coords_list = []
     confidences_list = []
     timestamps_list = []
     track_id_list = []
-        
+
     for ele in prediction_data:
         y_pred, confidences = ele[0]
         data = ele[1]
-        
+
         pred_coords_list.append(y_pred.cpu().numpy().copy())
         confidences_list.append(confidences.cpu().numpy().copy())
         timestamps_list.append(data["timestamp"].numpy().copy())
         track_id_list.append(data["track_id"].numpy().copy())
-    
+
     timestamps = np.concatenate(timestamps_list)
-    track_ids = np.concatenate(track_id_list)
-    coords = np.concatenate(pred_coords_list)
-    confs = np.concatenate(confidences_list)
-    
-    write_pred_csv(os.path.join(trainer_params["experiment_path"], 'submission.csv'),
-               timestamps=np.concatenate(timestamps),
-               track_ids=np.concatenate(agent_ids),
-               coords=np.concatenate(future_coords_offsets_pd))
+    track_ids = np.concatenate(track_id_list)  # noqa: F841
+    coords = np.concatenate(pred_coords_list)  # noqa: F841
+    confs = np.concatenate(confidences_list)  # noqa: F841
+
+    write_pred_csv(
+        os.path.join(trainer_params["experiment_path"], "submission.csv"),
+        timestamps=np.concatenate(timestamps),
+        track_ids=np.concatenate(agent_ids),  # noqa: F821
+        coords=np.concatenate(future_coords_offsets_pd),  # noqa: F821
+    )
+
 
 """
 =================================CREATING CLASS WRAPPER=================================
-"""        
+"""
+
 
 class LytfTrainingWrapper(TrainerClass):
     def __init__(self, model=None, loss_fn=None):
@@ -433,7 +416,7 @@ class LytfTrainingWrapper(TrainerClass):
     def train_step(self, batch_data):
         inputs = batch_data["image"].to(device)
         y_pred, confidences = self.model(inputs)
-        
+
         target_availabilities = batch_data["target_availabilities"].to(device)
         y_true = batch_data["target_positions"].to(device)
 
@@ -443,15 +426,15 @@ class LytfTrainingWrapper(TrainerClass):
             "loss": loss.item(),
             "nll": pytorch_neg_multi_log_likelihood_batch(y_true, y_pred, confidences, target_availabilities).item(),
         }
-        
+
         return loss, metrics
-    
+
     def validation_step(self, batch_data):
         inputs = batch_data["image"].to(device)
         y_pred, confidences = self.model(inputs)
-        
+
         return (y_pred, confidences)
-    
+
     def get_optimizer_scheduler(self):
         params = list(self.model.named_parameters())
 
@@ -459,105 +442,113 @@ class LytfTrainingWrapper(TrainerClass):
             return "head" in name
 
         optimizer_grouped_parameters = [
-        {"params": [p for n, p in params if not is_head(n)], "lr": Params["learning_rate"]/50},
-        {"params": [p for n, p in params if is_head(n)], "lr": Params["learning_rate"]},
+            {"params": [p for n, p in params if not is_head(n)], "lr": Params["learning_rate"] / 50},
+            {"params": [p for n, p in params if is_head(n)], "lr": Params["learning_rate"]},
         ]
 
         optimizer = Ranger(optimizer_grouped_parameters, lr=Params["learning_rate"])
-        
-        scheduler = get_flat_cosine_schedule(optimizer=optimizer, 
-                                             num_training_steps=train_cfg["train_params"]["max_num_steps"]*Params["EPOCHS"])
-        
+
+        scheduler = get_flat_cosine_schedule(
+            optimizer=optimizer, num_training_steps=train_cfg["train_params"]["max_num_steps"] * Params["EPOCHS"]
+        )
+
         return optimizer, scheduler
-    
+
 
 """
 =================================MAIN LOOP=================================
 
 """
 
+
 def training():
     set_experiment()
-    
+
     shutil.copy(__file__, os.path.join(trainer_params["experiment_path"], __file__))
     cfg = train_cfg
-    
+
     model = LyftModel(cfg).to(device)
-    
-    description = '{}_{}_{}_{}_{}_{}' .format(Params["net_type"], 
-                                         Params["optimizer"], 
-                                         Params["learning_rate"], 
-                                         cfg["data_loader_data"]["batch_size"], 
-                                         cfg["raster_params"]["raster_size"][0], 
-                                         cfg["raster_params"]["pixel_size"][0])
-    
+
+    description = "{}_{}_{}_{}_{}_{}".format(
+        Params["net_type"],
+        Params["optimizer"],
+        Params["learning_rate"],
+        cfg["data_loader_data"]["batch_size"],
+        cfg["raster_params"]["raster_size"][0],
+        cfg["raster_params"]["pixel_size"][0],
+    )
+
     trainer_params["description"] = description
-    
-    trainer = Trainer(model=LytfTrainingWrapper(model, pytorch_neg_multi_log_likelihood_batch), 
-                      cfg=trainer_params)
-    
-    train_ds, valid_ds = create_ds_images(cfg, 
-                                          split_data=True)
-    
-    trainer.fit(train_dataset=train_ds, 
-                    batch_size=cfg["data_loader_data"]["batch_size"], 
-                    epochs=Params["EPOCHS"],
-                    validation_dataset=valid_ds, 
-                    validation_metric='nll', 
-                    steps_per_epoch=40)
-    
+
+    trainer = Trainer(model=LytfTrainingWrapper(model, pytorch_neg_multi_log_likelihood_batch), cfg=trainer_params)
+
+    train_ds, valid_ds = create_ds_images(cfg, split_data=True)
+
+    trainer.fit(
+        train_dataset=train_ds,
+        batch_size=cfg["data_loader_data"]["batch_size"],
+        epochs=Params["EPOCHS"],
+        validation_dataset=valid_ds,
+        validation_metric="nll",
+        steps_per_epoch=40,
+    )
+
+
+def create_predict_dl(cgf):
+    return 1
+
+
 def predict(experiment_dir=None, checkpoint_dir=None):
-    
-    assert(experiment_dir!=None)
+
+    assert experiment_dir is not None
     set_experiment(resume_path=experiment_dir)
     cfg = test_cfg
-    
+
     model = LyftModel(cfg).to(device)
-    
-    assert(checkpoint_dir != None)
-    model_dict = torch.load(args.checkpoint_dir, map_location = device)
+
+    assert checkpoint_dir is not None
+    model_dict = torch.load(args.checkpoint_dir, map_location=device)
     model.load_state_dict(model_dict)
-    
+
     test_dl = create_predict_dl(cfg)
-    
+
     trainer = Trainer(model=LytfTrainingWrapper(model, pytorch_neg_multi_log_likelihood_batch))
-    
-    prediction_data = trainer.predict(train_dl)
-        
+
+    prediction_data = trainer.predict(test_dl)
+
     make_prediction(prediction_data)
 
 
 def main(args):
-    
-    print("raster size ",train_cfg["raster_params"]["raster_size"])
+
+    print("raster size ", train_cfg["raster_params"]["raster_size"])
     train_cfg["raster_params"]["raster_size"] = [args.raster_size, args.raster_size]
-    print("new raster size ",train_cfg["raster_params"]["raster_size"])
-    
-    print("raster size ",train_cfg["raster_params"]["pixel_size"])
+    print("new raster size ", train_cfg["raster_params"]["raster_size"])
+
+    print("raster size ", train_cfg["raster_params"]["pixel_size"])
     train_cfg["raster_params"]["pixel_size"] = [args.pixel_size, args.pixel_size]
-    print("new raster size ",train_cfg["raster_params"]["pixel_size"])
-    
-    print("batch_size ",train_cfg["data_loader_data"]["batch_size"])
+    print("new raster size ", train_cfg["raster_params"]["pixel_size"])
+
+    print("batch_size ", train_cfg["data_loader_data"]["batch_size"])
     train_cfg["data_loader_data"]["batch_size"] = args.batch_size
-    print("new batch_size ",train_cfg["data_loader_data"]["batch_size"])
-    
+    print("new batch_size ", train_cfg["data_loader_data"]["batch_size"])
+
     Params["EPOCHS"] = args.epochs
-    
+
     if args.training_mode:
         training()
     else:
-        predict(experiment_dir=args.experiment_dir, 
-                checkpoint_dir=args.checkpoint_dir)
+        predict(experiment_dir=args.experiment_dir, checkpoint_dir=args.checkpoint_dir)
 
 
-if __name__ == "__main__":  
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pixel_size', type=float, required=True)
-    parser.add_argument('--raster_size', type=int, required=True)
-    parser.add_argument('--batch_size', type=int, required=True)
-    parser.add_argument('--checkpoint_dir', type=str, required=False, default=None)
-    parser.add_argument('--experiment_dir', type=str, required=False, default=None)
-    parser.add_argument('--epochs', type=int, required=False, default=1)
-    parser.add_argument('--training_mode', type=bool, required=False, default=True)
+    parser.add_argument("--pixel_size", type=float, required=True)
+    parser.add_argument("--raster_size", type=int, required=True)
+    parser.add_argument("--batch_size", type=int, required=True)
+    parser.add_argument("--checkpoint_dir", type=str, required=False, default=None)
+    parser.add_argument("--experiment_dir", type=str, required=False, default=None)
+    parser.add_argument("--epochs", type=int, required=False, default=1)
+    parser.add_argument("--training_mode", type=bool, required=False, default=True)
     args = parser.parse_args()
     main(args)
