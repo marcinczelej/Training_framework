@@ -1,3 +1,8 @@
+from l5kit.data import LocalDataManager, ChunkedDataset
+from l5kit.dataset import AgentDataset, EgoDataset
+from l5kit.rasterization import build_rasterizer
+from l5kit.evaluation import write_pred_csv
+
 import os
 import sys
 import shutil
@@ -30,12 +35,8 @@ import torchvision.models as models
 from mag.experiment import Experiment
 from schedulers import get_flat_cosine_schedule
 
-from trainer import Trainer
+from trainer.MainTrainerClass import Trainer
 
-from l5kit.data import LocalDataManager, ChunkedDataset
-from l5kit.dataset import AgentDataset, EgoDataset
-from l5kit.rasterization import build_rasterizer
-from l5kit.evaluation import write_pred_csv
 
 from sklearn.model_selection import train_test_split
 from collections import OrderedDict
@@ -182,8 +183,10 @@ def set_experiment(resume_path=None):
     else:
         experiment = Experiment(resume_from=resume_path)
     experiment.register_directory("checkpoints")
-    trainer_params["save_path"] = experiment.checkpoints
-    trainer_params["experiment_path"] = os.path.join("experiments", experiment.config.identifier)
+    trainer_params["save_path"] = os.path.join(Path(__file__).parent.absolute(), experiment.checkpoints)
+    trainer_params["experiment_path"] = os.path.join(
+        Path(__file__).parent.absolute(), "experiments", experiment.config.identifier
+    )
     trainer_params["experiment"] = experiment
 
 

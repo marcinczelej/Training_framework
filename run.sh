@@ -11,5 +11,6 @@ pip install l5kit
 pip install black flake8 mypy
 pip install pre-commit
 pre-commit install
+pip install l5kit
 
 python runner_Lyft_new.py --pixel_size=0.51 --raster_size=300 --batch_size=1 --epochs=1
