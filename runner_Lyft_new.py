@@ -327,7 +327,7 @@ class LyftModel(nn.Module):
     def __init__(self, cfg: Dict):
         super().__init__()
 
-        self.backbone = models.resnet.resnet18(pretrained=True, progress=True,)
+        self.backbone = models.resnet.resnet18(pretrained=True, progress=True)
 
         # print(self.backbone)
 
