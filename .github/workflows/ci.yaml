@@ -1,3 +1,7 @@
+name: Basic python checks
+
+os: [push]
+
 jobs:
   python-basic-checks:
     steps:
