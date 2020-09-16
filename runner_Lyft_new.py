@@ -413,6 +413,9 @@ class LytfTrainingWrapper(TrainerClass):
     def __init__(self, model=None, loss_fn=None):
         super().__init__(model, loss_fn)
 
+    def forward(self, batch_data):
+        return self.model(batch_data)
+
     def train_step(self, batch_data):
         inputs = batch_data["image"].to(device)
         y_pred, confidences = self.model(inputs)

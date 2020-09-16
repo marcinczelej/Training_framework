@@ -11,10 +11,13 @@ from pathlib import Path
 from tqdm import tqdm
 from mag.experiment import Experiment
 
+from checkpoint_saver import Checkpoint_saver
+
 try:
     from apex import amp
 except ImportError:
     print("Please install apex from https://www.github.com/nvidia/apex")
+    amp = None
 
 writer = SummaryWriter()
 
@@ -57,11 +60,12 @@ class Trainer:
         self.cfg = cfg
         self.description = cfg["description"]
 
-        self.best_loss = 10000000
-        self.best_validation_metric = 10000000
         self.current_epoch = 0
         self.metric_container = {}
         self.global_step = 0
+        self.checkpointer = Checkpoint_saver(
+            checkpoints_dir=self.cfg["save_path"], experiment=self.cfg["experiment"], description=self.description
+        )
 
         self.settings = {
             "batch_size": None,
@@ -110,7 +114,6 @@ class Trainer:
             self.metric_container[key] = AverageMeter()
             logging.info(f"adding metric {key}")
         self.train_columns.append("learning_rate")
-        self.train_columns.append("saving_best")
         self.train_df = pd.DataFrame(columns=self.train_columns)
 
     def __write_to_tensorboard(self, metrics_data):
@@ -135,6 +138,8 @@ class Trainer:
         epochs = self.settings["epochs"]
         self.model.model.train()
         torch.set_grad_enabled(True)
+
+        self.checkpointer.set_epoch(self.current_epoch)
 
         dl_iter = iter(dataloader)
 
@@ -169,34 +174,25 @@ class Trainer:
 
             self.__write_to_tensorboard(metrics.items())
 
-            # set pbar description
             current_loss = self.metric_container["loss"].current
             avg_loss = self.metric_container["loss"].avg
-            pbar.set_description(
-                f"TRAIN epoch {self.current_epoch+1}/{epochs} idx {step} \
-                current loss {current_loss}, avg loss {avg_loss}"
-            )
 
             # Saving interval - optional
             if (
                 self.settings["checkpoint_every_n_steps"] is not None
                 and (step + 1) % self.settings["checkpoint_every_n_steps"] == 0
             ):
-                save_dir = os.path.join(self.cfg["save_path"], f"epoch_{self.current_epoch}")
-                Path(save_dir).mkdir(parents=True, exist_ok=True)
-                save_file = os.path.join(save_dir, f"epoch_{self.current_epoch}_step_{step}_avg_loss_{avg_loss}.bin")
-                self.save(save_file)
-
-            # Saving best loss and registering best loss
-            saving_best = False
-            if self.best_loss > self.metric_container["loss"].avg:
-                saving_best = True
-                logging.info("saving best model with loss {}".format(self.metric_container["loss"].avg))
-                self.best_loss = self.metric_container["loss"].avg
-                torch.save(
-                    self.model.model.state_dict(), os.path.join(self.cfg["save_path"], "best_model_checkpoint.pth")
+                self.checkpointer.save_checkpoint(
+                    metric_value=avg_loss,
+                    model=self.model.model,
+                    checkpoint_name=f"epoch_{self.current_epoch}_step_{step}_avg_loss_{avg_loss}.bin",
+                    checkpoint_path=os.path.join(self.cfg["save_path"], f"epoch_{self.current_epoch}"),
                 )
-                self.cfg["experiment"].register_result("best_loss", self.metric_container["loss"].avg)
+
+            # save best
+            self.checkpointer.should_save_best(
+                metric_value=self.metric_container["loss"].avg, model=self.model.model, task="train"
+            )
 
             # registering last loss
             self.cfg["experiment"].register_result("last_loss", self.metric_container["loss"].avg)
@@ -205,7 +201,7 @@ class Trainer:
             new_row = (
                 [self.current_epoch, step, loss.detach().item()]
                 + [metric.avg for metric in self.metric_container.values()]
-                + [self.__get_learning_rate(), saving_best]
+                + [self.__get_learning_rate()]
             )
 
             new_series = pd.Series(new_row, index=self.train_df.columns)
@@ -213,9 +209,20 @@ class Trainer:
             self.train_df = self.train_df.append(new_series, ignore_index=True)
             self.train_df.to_csv(os.path.join(self.cfg["experiment_path"], "train_logs.csv"), index=False)
 
+            # set pbar description
+            pbar.set_description(
+                f"TRAIN epoch {self.current_epoch+1}/{epochs} idx {step} \
+                current loss {current_loss}, avg loss {avg_loss}"
+            )
+
         # Saving last checkpoint in epoch
-        save_file = os.path.join(self.cfg["save_path"], "last_checkpoint.bin")
-        self.save(save_file)
+        self.checkpointer.save(
+            checkpoint_name="last_checkpoint.bin",
+            model=self.model,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            amp=amp,
+        )
 
     def __validation_step(self, dataloader, validation_metric):
         epochs = self.settings["epochs"]
@@ -261,18 +268,13 @@ class Trainer:
             self.valid_df.to_csv(os.path.join(self.cfg["experiment_path"], "validation_logs.csv"), index=False)
             logging.info(f"Validation result metric for epoch {self.current_epoch} = {val_metric.avg}")
 
-            if self.best_validation_metric > val_metric.avg:
-                file_name = f"best_model_validation_{self.description}.pth"
-
-                logging.info(
-                    "saving best model with epoch {} validation metric {} as {}".format(
-                        self.current_epoch, val_metric.avg, file_name
-                    )
-                )
-                self.best_validation_metric = val_metric.avg
-                torch.save(self.model.model.state_dict(), os.path.join(self.cfg["save_path"], file_name))
-                self.cfg["experiment"].register_result("best_validation_loss", validation_sum_loss.avg)
-                self.cfg["experiment"].register_result("best_validation_metric", val_metric.avg)
+            # save best
+            self.checkpointer.should_save_best(
+                metric_value=val_metric.avg,
+                checkpoint_name=f"best_model_validation_{self.description}.pth",
+                model=self.model.model,
+                task="validation",
+            )
 
     def __predict_outputs(self, dataloader):
         self.model.model.eval()
@@ -287,40 +289,6 @@ class Trainer:
                 output_values.append((output, data))
 
         return output_values
-
-    def save(self, path):
-        logging.info(f"saving checkpoint to {path}")
-        self.model.model.eval()
-
-        save_dict = {
-            "model_state_dict": self.model.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "epoch": self.current_epoch,
-            "best_loss": self.best_loss,
-        }
-
-        if self.cfg["step_scheduler"] is not None:
-            save_dict["scheduler_state_dict"] = self.scheduler.state_dict()
-
-        if self.cfg["use_apex"]:
-            save_dict["amp"] = amp.state_dict()
-
-        torch.save(save_dict, path)
-
-    def load(self, path):
-        logging.info(f"loading checkpoint from {path}")
-        checkpoint = torch.load(path)
-        self.model.model.load_state_dict(checkpoint["model_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        self.current_epoch = checkpoint["epoch"] + 1
-        self.best_loss = checkpoint["best_loss"]
-
-        if self.cfg["step_scheduler"] is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        if self.cfg["use_apex"]:
-            amp.load_state_dict(checkpoint["amp"])
 
     def fit(
         self,
@@ -343,7 +311,7 @@ class Trainer:
         Parameters:
             :param torch.utils.data.Dataset train_dataset: Dataset for model.
             :param int batch_size: batch size that should be used during training/validation
-            :param int epochs: NUmber of epochs to train
+            :param int epochs: Number of epochs to train
             :param torch.utils.data.Dataset validation_dataset: Dataset for validation data
             :param int steps_per_epoch: training steps that should be performed each epoch.
                 If not specified whole training set would be used
