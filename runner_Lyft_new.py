@@ -41,7 +41,7 @@ from trainer.MainTrainerClass import Trainer
 from sklearn.model_selection import train_test_split
 from collections import OrderedDict
 
-from BaseTrainerClass import TrainerClass
+from trainer.BaseTrainerClass import TrainerClass
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -457,6 +457,8 @@ class LytfTrainingWrapper(TrainerClass):
         scheduler = get_flat_cosine_schedule(
             optimizer=optimizer, num_training_steps=train_cfg["train_params"]["max_num_steps"] * Params["EPOCHS"]
         )
+
+        print("SCHEDULER LRS: ", scheduler.base_lrs)
 
         return optimizer, scheduler
 

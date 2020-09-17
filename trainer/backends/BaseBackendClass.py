@@ -6,11 +6,11 @@ import pandas as pd
 
 from pathlib import Path
 
-from BaseTrainerClass import TrainerClass
+from trainer.BaseTrainerClass import TrainerClass
 from typing import Dict
 
-from utilities.checkpoint_saver import Checkpoint_saver
-from utilities.metrics import AverageMeter
+from trainer.utilities.checkpoint_saver import Checkpoint_saver
+from trainer.utilities.metrics import AverageMeter
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -21,28 +21,13 @@ class BackendBase(ABC):
     def __init__(self, model: TrainerClass):
         self.model = model
 
+    @abstractmethod
     def setup(self, settings: Dict):
-        self.optimizer, self.scheduler = self.model.get_optimizer_scheduler()
-        self.current_epoch = 0
-        self.metric_container = {}
-        self.global_step = 0
-        self.settings = settings
+        raise NotImplementedError
 
-        self.checkpointer = Checkpoint_saver(
-            checkpoints_dir=self.settings["save_path"],
-            experiment=self.settings["experiment"],
-            description=self.settings["description"],
-        )
-
-        self.set_logger()
-
-        self.train_columns = ["epoch", "step", "current_loss"]
-        self.validate_columns = ["epoch"]
-
-        self.train_df = None
-        self.valid_df = pd.DataFrame(columns=["epoch", "loss", "avg_metric"])
-
-        print(self.settings)
+    @abstractmethod
+    def train_step(self, data, step):
+        raise NotImplementedError
 
     @abstractmethod
     def train_phase(self, dataloader):
@@ -55,14 +40,18 @@ class BackendBase(ABC):
     def set_logger(self):
         logging_dir = os.path.join(self.settings["experiment_path"], "info.log")
 
-        logging.StreamHandler(stream=None)
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.ERROR)
+
         logger = logging.getLogger()
 
         fhandler = logging.FileHandler(filename=logging_dir, mode="a")
         formatter = logging.Formatter("%(asctime)s - %(process)d -  %(message)s")
         fhandler.setFormatter(formatter)
+        fhandler.setLevel(logging.INFO)
+
         logger.addHandler(fhandler)
-        logger.setLevel(logging.INFO)
+        logger.addHandler(ch)
 
     def initialize_csv_file(self, metrics_data):
         for i, (key, val) in enumerate(metrics_data):

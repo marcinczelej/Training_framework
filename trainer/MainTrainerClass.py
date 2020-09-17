@@ -5,16 +5,14 @@ import sys
 
 import pandas as pd
 
-from BaseTrainerClass import TrainerClass
+from trainer.BaseTrainerClass import TrainerClass
 
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
 from mag.experiment import Experiment
 
-from utilities.checkpoint_saver import Checkpoint_saver
-
-from backends.simple_backend import SimpleBackend
+from trainer.backends.simple_backend import SimpleBackend
 
 try:
     from apex import amp
@@ -103,30 +101,17 @@ class Trainer:
         self.settings["epochs"] = epochs
         self.settings["shuffle"] = shuffle
         self.settings["validation_metric"] = validation_metric
+        self.settings["num_workers"] = num_workers
 
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset, shuffle=shuffle, batch_size=batch_size, num_workers=num_workers
-        )
+        self.settings["steps_per_epoch"] = steps_per_epoch
 
-        if steps_per_epoch is None:
-            self.settings["steps_per_epoch"] = len(train_dataloader)
-        else:
-            self.settings["steps_per_epoch"] = steps_per_epoch
+        self.settings["validation_steps"] = validation_steps
+        self.settings["validation_freq"] = validation_freq
 
         if validation_batch_size is None:
             self.settings["validation_batch_size"] = batch_size
         else:
             self.settings["validation_batch_size"] = validation_batch_size
-
-        if validation_dataset is not None:
-            validation_dataloader = torch.utils.data.DataLoader(
-                validation_dataset,
-                shuffle=shuffle,
-                batch_size=self.settings["validation_batch_size"],
-                num_workers=num_workers,
-            )
-            self.settings["validation_steps"] = len(validation_dataloader)
-            self.settings["validation_freq"] = validation_freq
 
         self.settings["checkpoint_every_n_steps"] = checkpoint_every_n_steps
 
@@ -141,24 +126,7 @@ class Trainer:
         self.processing_backend.setup(self.settings)
         for epoch in range(self.settings["epochs"]):
             logging.info("starting epoch {}/{} training step".format(epoch + 1, self.settings["epochs"]))
-            self.processing_backend.train_phase(train_dataloader)
+            self.processing_backend.train_phase(train_dataset)
 
-            if validation_dataloader is not None and (epoch + 1) % self.settings["validation_freq"] == 0:
-                self.processing_backend.validation_phase(validation_dataloader)
-
-    def predict(self, dataloader):
-        """
-        Method used for predicting output given input data
-
-        Parameters:
-            :param DataLoader dataloader: Dataloader for given data
-
-        Returns:
-            prediction_output: Data in format: tuple(model_output, data for whitch given output was prodiced)
-        """
-
-        assert self.model is not None
-
-        prediction_output = self.__predict_outputs(dataloader)
-
-        return prediction_output
+            if validation_dataset is not None and (epoch + 1) % self.settings["validation_freq"] == 0:
+                self.processing_backend.validation_phase(validation_dataset)
