@@ -35,7 +35,6 @@ google-auth==1.11.0
 google-auth-oauthlib==0.4.1
 google-pasta==0.1.8
 googleapis-common-protos==1.51.0
-graphsurgeon==0.4.1
 grpcio==1.26.0
 h5py==2.9.0
 horovod==0.20.0
