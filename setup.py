@@ -8,7 +8,7 @@ from typing import Tuple, List
 from setuptools import Command, find_packages, setup
 
 # Package meta-data.
-name = "Simple Trainng framework for Pytorch"
+name = "simple framework"
 description = "Simple training framework for pytorch, with basic training loops and horovod support"
 url = "https://github.com/mizzmir/Training_framework"
 email = "marcin.l.czelej@gmail.com"
