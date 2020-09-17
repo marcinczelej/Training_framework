@@ -1,4 +1,4 @@
-__version__ = "0.0.5.9"
+__version__ = "0.0.1.0"
 
 from simple_framework.trainer import Trainer, TrainerClass
 
