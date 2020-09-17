@@ -26,7 +26,8 @@ class SimpleBackend(BackendBase):
         self.settings = settings
 
         self.checkpointer = Checkpoint_saver(
-            checkpoints_dir=self.settings["save_path"], description=self.settings["description"],
+            checkpoints_dir=self.settings["save_path"],
+            description=self.settings["description"],
         )
 
         self.set_logger()
