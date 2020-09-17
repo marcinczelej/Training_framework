@@ -1,6 +1,6 @@
-__version__ = "0.0.1.3"
+__version__ = "0.0.1.5"
 
-from simple_framework.trainer import Trainer, TrainerClass
+from simple_framework.trainer import Trainer, SimpleFrameworkWrapper
 
 from simple_framework.utilities.schedulers import get_flat_cosine_schedule
 from simple_framework.utilities.metrics import AverageMeter

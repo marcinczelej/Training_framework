@@ -3,6 +3,8 @@ import torch
 import logging
 import sys
 
+from typing import Dict, List
+
 import pandas as pd
 
 from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
@@ -21,9 +23,20 @@ from simple_framework.backends.horovod_backend import HorovodBackend
 
 
 class Trainer:
-    def __init__(self, model: SimpleFrameworkWrapper, cfg):
+    def __init__(self, model: SimpleFrameworkWrapper, cfg: Dict, gpus=None):
 
-        self.model = model
+        if isinstance(gpus, int):
+            gpus_to_use = str(gpus)
+        elif isinstance(gpus, List):
+            gpus_to_use = " ".join([str(elem) + "," for elem in gpus])
+        else:
+            gpus_to_use = ""
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpus_to_use
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.model = model.to(device)
         self.settings = {
             "batch_size": None,
             "epochs": 1,

@@ -80,7 +80,7 @@ class HorovodBackend(BackendBase):
         verbose = 1 if hvd.rank() == 0 else 0
 
         self.optimizer.zero_grad()
-        loss, metrics = self.model.train_step(data)
+        loss, metrics = self.model.train_step(data.cuda())
 
         # creating metrics container first time we see it
         if not self.metric_container:
@@ -237,7 +237,7 @@ class HorovodBackend(BackendBase):
                     dl_iter = iter(validation_dataloader)
                     data = next(dl_iter)
 
-                loss, metrics = self.model.train_step(data)
+                loss, metrics = self.model.train_step(data.cuda())
 
                 # add to average meter for loss
                 validation_sum_loss.update(loss.item(), self.settings["validation_batch_size"])
