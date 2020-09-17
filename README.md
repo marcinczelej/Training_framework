@@ -1,6 +1,8 @@
 # Training_framework
 Training framework for pytorch models
 
-https://github.com/PyTorchLightning/pytorch-lightning/blob/890588a9eecaa04cdf4361ba91f3f3f9d91e8461/pytorch_lightning/accelerators/horovod_backend.py
+Simple training framework for pytorch  supporting two cases:
+- Normal training
+- Horovod Training
 
-Horovod backend
+Use example: https://gist.github.com/mizzmir/2101e2dde34eb2a2d15a640bd93f33b4
