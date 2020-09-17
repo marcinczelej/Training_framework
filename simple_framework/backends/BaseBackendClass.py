@@ -6,11 +6,11 @@ import pandas as pd
 
 from pathlib import Path
 
-from trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import TrainerClass
 from typing import Dict
 
-from trainer.utilities.checkpoint_saver import Checkpoint_saver
-from trainer.utilities.metrics import AverageMeter
+from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
+from simple_framework.utilities.metrics import AverageMeter
 
 from torch.utils.tensorboard import SummaryWriter
 

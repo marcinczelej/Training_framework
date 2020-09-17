@@ -5,20 +5,14 @@ import sys
 
 import pandas as pd
 
-from trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import TrainerClass
 
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
 
-from trainer.backends.simple_backend import SimpleBackend
-from trainer.backends.horovod_backend import HorovodBackend
-
-try:
-    from apex import amp
-except ImportError:
-    print("Please install apex from https://www.github.com/nvidia/apex")
-    amp = None
+from simple_framework.backends.simple_backend import SimpleBackend
+from simple_framework.backends.horovod_backend import HorovodBackend
 
 
 """

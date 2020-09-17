@@ -1,6 +1,6 @@
-from trainer.backends.BaseBackendClass import BackendBase
+from simple_framework.backends.BaseBackendClass import BackendBase
 
-from trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import TrainerClass
 from typing import Dict
 
 from tqdm import tqdm
@@ -10,8 +10,8 @@ import os
 
 import torch
 
-from trainer.utilities.metrics import AverageMeter
-from trainer.utilities.checkpoint_saver import Checkpoint_saver
+from simple_framework.utilities.metrics import AverageMeter
+from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
 
 
 class SimpleBackend(BackendBase):
