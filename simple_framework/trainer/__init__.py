@@ -1,4 +1,4 @@
 from simple_framework.trainer.trainer import Trainer
-from simple_framework.trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 
-__all__ = ["Trainer", "TrainerClass"]
+__all__ = ["Trainer", "SimpleFrameworkWrapper"]

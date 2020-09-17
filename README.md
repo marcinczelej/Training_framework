@@ -5,4 +5,4 @@ Simple training framework for pytorch  supporting two cases:
 - Normal training
 - Horovod Training
 
-Use example: https://gist.github.com/mizzmir/2101e2dde34eb2a2d15a640bd93f33b4
+Use example: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1MB3dQMWWot8GsMThPe2I4k6jDgw-SqOx?usp=sharing)

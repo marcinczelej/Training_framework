@@ -6,7 +6,7 @@ import pandas as pd
 
 from pathlib import Path
 
-from simple_framework.trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 from typing import Dict
 
 from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
@@ -18,7 +18,7 @@ writer = SummaryWriter()
 
 
 class BackendBase(ABC):
-    def __init__(self, model: TrainerClass):
+    def __init__(self, model: SimpleFrameworkWrapper):
         self.model = model
 
     @abstractmethod

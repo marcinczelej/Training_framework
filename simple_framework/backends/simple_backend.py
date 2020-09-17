@@ -1,6 +1,6 @@
 from simple_framework.backends.BaseBackendClass import BackendBase
 
-from simple_framework.trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 from typing import Dict
 
 from tqdm import tqdm
@@ -15,7 +15,7 @@ from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
 
 
 class SimpleBackend(BackendBase):
-    def __init__(self, model: TrainerClass):
+    def __init__(self, model: SimpleFrameworkWrapper):
         super().__init__(model)
 
     def setup(self, settings: Dict):

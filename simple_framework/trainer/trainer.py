@@ -5,7 +5,7 @@ import sys
 
 import pandas as pd
 
-from simple_framework.trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
@@ -21,7 +21,7 @@ from simple_framework.backends.horovod_backend import HorovodBackend
 
 
 class Trainer:
-    def __init__(self, model: TrainerClass, cfg):
+    def __init__(self, model: SimpleFrameworkWrapper, cfg):
 
         self.model = model
         self.settings = {
@@ -33,10 +33,10 @@ class Trainer:
             "validation_freq": 1,
             "checkpoint_every_n_steps": None,
             "shuffle": True,
-            "description": cfg["description"],
+            "description": cfg["description"] if cfg["description"] is not None else "model",
             "save_path": cfg["save_path"],
             "experiment_path": cfg["experiment_path"],
-            "backbone": "Horovod",
+            "backbone": cfg["backbone"] if cfg["backbone"] is not None else "Simple",
             "validation_metric": "loss",
             "use_fp16": False,
         }

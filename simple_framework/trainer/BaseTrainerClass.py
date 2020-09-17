@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import torch
 
 
-class TrainerClass(ABC, torch.nn.Module):
+class SimpleFrameworkWrapper(ABC, torch.nn.Module):
     @abstractmethod
     def __init__(self, model: torch.nn.Module = None, loss_fn=None):
         super().__init__()

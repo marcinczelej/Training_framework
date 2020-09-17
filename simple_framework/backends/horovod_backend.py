@@ -1,6 +1,6 @@
 from simple_framework.backends.BaseBackendClass import BackendBase
 
-from simple_framework.trainer.BaseTrainerClass import TrainerClass
+from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 from typing import Dict
 
 from tqdm import tqdm
@@ -17,7 +17,7 @@ import horovod.torch as hvd
 
 
 class HorovodBackend(BackendBase):
-    def __init__(self, model: TrainerClass):
+    def __init__(self, model: SimpleFrameworkWrapper):
         super().__init__(model)
 
     def setup(self, settings: Dict):
@@ -53,13 +53,14 @@ class HorovodBackend(BackendBase):
 
         print(self.get_learning_rate())
 
-        for idx, lr in enumerate(self.scheduler.base_lrs):
-            logging.info(f"Base scheduler learning rate #{idx} : {lr}")
+        if self.scheduler is not None:
+            for idx, lr in enumerate(self.scheduler.base_lrs):
+                logging.info(f"Base scheduler learning rate #{idx} : {lr}")
 
-        self.scheduler.base_lrs = [lr * hvd.size() for lr in self.scheduler.base_lrs]
+            self.scheduler.base_lrs = [lr * hvd.size() for lr in self.scheduler.base_lrs]
 
-        for idx, lr in enumerate(self.scheduler.base_lrs):
-            logging.info(f"Scheduler learning rate #{idx} : {lr} after resizing to match horovod GPU number")
+            for idx, lr in enumerate(self.scheduler.base_lrs):
+                logging.info(f"Scheduler learning rate #{idx} : {lr} after resizing to match horovod GPU number")
 
         hvd.broadcast_parameters(self.model.state_dict(), root_rank=0)
         hvd.broadcast_optimizer_state(self.optimizer, root_rank=0)
