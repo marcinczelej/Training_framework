@@ -26,9 +26,7 @@ class SimpleBackend(BackendBase):
         self.settings = settings
 
         self.checkpointer = Checkpoint_saver(
-            checkpoints_dir=self.settings["save_path"],
-            experiment=self.settings["experiment"],
-            description=self.settings["description"],
+            checkpoints_dir=self.settings["save_path"], description=self.settings["description"],
         )
 
         self.set_logger()
@@ -78,9 +76,6 @@ class SimpleBackend(BackendBase):
         self.checkpointer.should_save_best(
             metric_value=self.metric_container["loss"].avg, model=self.model, task="train"
         )
-
-        # registering last loss
-        self.settings["experiment"].register_result("last_loss", self.metric_container["loss"].avg)
 
         # adding given step data to csv file
         new_row = (

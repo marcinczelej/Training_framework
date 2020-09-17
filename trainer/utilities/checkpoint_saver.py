@@ -6,13 +6,12 @@ import logging
 
 
 class Checkpoint_saver:
-    def __init__(self, checkpoints_dir, experiment, description):
+    def __init__(self, checkpoints_dir, description):
         self.best_train_metric = 10000000
         self.best_validation_metric = 10000000
         self.current_epoch = 0
         self.descritpion = description
         self.checkpoints_dir = checkpoints_dir
-        self.experiment = experiment
 
     def set_epoch(self, epoch):
         self.current_epoch = epoch
@@ -37,7 +36,6 @@ class Checkpoint_saver:
         Path(checkpoint_path).mkdir(parents=True, exist_ok=True)
         logging.info(f"saving model for {task} with metric {metric_value} as {checkpoint_name}")
         torch.save(model.state_dict(), os.path.join(checkpoint_path, checkpoint_name))
-        self.experiment.register_result(f"best_{task}_metric", metric_value)
 
     def save(self, checkpoint_name, model, optimizer, scheduler=None, amp=None):
 

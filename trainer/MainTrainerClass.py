@@ -10,7 +10,6 @@ from trainer.BaseTrainerClass import TrainerClass
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
-from mag.experiment import Experiment
 
 from trainer.backends.simple_backend import SimpleBackend
 from trainer.backends.horovod_backend import HorovodBackend
@@ -41,7 +40,6 @@ class Trainer:
             "checkpoint_every_n_steps": None,
             "shuffle": True,
             "description": cfg["description"],
-            "experiment": cfg["experiment"],
             "save_path": cfg["save_path"],
             "experiment_path": cfg["experiment_path"],
             "backbone": "Horovod",

@@ -1,5 +1,4 @@
 horovod==0.20.0
-mag @ git+https://github.com/ex4sperans/mag.git@6f88482f7e6296edb491378b4937fbb036a89d83
 pandas==1.0.3
 torch==1.5.1
 torchvision==0.6.1
