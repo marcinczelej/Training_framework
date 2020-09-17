@@ -30,11 +30,15 @@ class BackendBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def train_phase(self, dataloader):
+    def train_epoch(self, data):
         raise NotImplementedError
 
     @abstractmethod
-    def validation_phase(self, dataloader):
+    def train_phase(self, dataset: torch.utils.data.Dataset):
+        raise NotImplementedError
+
+    @abstractmethod
+    def validation_phase(self, dataset: torch.utils.data.Dataset):
         raise NotImplementedError
 
     def set_logger(self):
@@ -73,7 +77,6 @@ class BackendBase(ABC):
         description = self.settings["description"]
 
         for _, (key, val) in enumerate(metrics_data):
-            self.metric_container[key].update(val, self.settings["batch_size"])
             if key == "loss":
                 continue
             writer.add_scalar(f"Metric/{key}_{description}", self.metric_container[key].avg, self.global_step)

@@ -54,6 +54,9 @@ class SimpleBackend(BackendBase):
         if self.scheduler is not None:
             self.scheduler.step()
 
+        for _, (key, val) in enumerate(metrics.items()):
+            self.metric_container[key].update(val, self.settings["batch_size"])
+
         super().write_to_tensorboard(metrics.items())
 
         current_loss = self.metric_container["loss"].current
@@ -93,23 +96,12 @@ class SimpleBackend(BackendBase):
 
         return current_loss
 
-    def train_phase(self, dataset: torch.utils.data.Dataset):
+    def train_epoch(self, train_dataloader):
 
-        train_dataloader = torch.utils.data.DataLoader(
-            dataset,
-            shuffle=self.settings["shuffle"],
-            batch_size=self.settings["batch_size"],
-            num_workers=self.settings["num_workers"],
-        )
-
-        if self.settings["steps_per_epoch"] is None:
-            self.settings["steps_per_epoch"] = len(train_dataloader)
-
-        epochs = self.settings["epochs"]
         self.model.train()
         torch.set_grad_enabled(True)
 
-        self.checkpointer.set_epoch(self.current_epoch)
+        epochs = self.settings["epochs"]
 
         dl_iter = iter(train_dataloader)
 
@@ -140,7 +132,28 @@ class SimpleBackend(BackendBase):
             optimizer=self.optimizer,
             scheduler=self.scheduler,
         )
-        self.current_epoch += 1
+
+    def train_phase(self, dataset: torch.utils.data.Dataset, validation_dataset: torch.utils.data.Dataset):
+
+        train_dataloader = torch.utils.data.DataLoader(
+            dataset,
+            shuffle=self.settings["shuffle"],
+            batch_size=self.settings["batch_size"],
+            num_workers=self.settings["num_workers"],
+        )
+
+        if self.settings["steps_per_epoch"] is None:
+            self.settings["steps_per_epoch"] = len(train_dataloader)
+
+        for epoch in range(self.settings["epochs"]):
+            logging.info("starting epoch {}/{} training step".format(epoch + 1, self.settings["epochs"]))
+            self.checkpointer.set_epoch(self.current_epoch)
+            self.train_epoch(train_dataloader)
+
+            if validation_dataset is not None and (epoch + 1) % self.settings["validation_freq"] == 0:
+                self.validation_phase(validation_dataset)
+
+            self.current_epoch += 1
 
     def validation_phase(self, dataset: torch.utils.data.Dataset):
 

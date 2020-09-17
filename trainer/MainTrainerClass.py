@@ -13,6 +13,7 @@ from tqdm import tqdm
 from mag.experiment import Experiment
 
 from trainer.backends.simple_backend import SimpleBackend
+from trainer.backends.horovod_backend import HorovodBackend
 
 try:
     from apex import amp
@@ -43,8 +44,9 @@ class Trainer:
             "experiment": cfg["experiment"],
             "save_path": cfg["save_path"],
             "experiment_path": cfg["experiment_path"],
-            "backbone": "Simple",
+            "backbone": "Horovod",
             "validation_metric": "loss",
+            "use_fp16": False,
         }
 
         self.__select_backbone()
@@ -52,8 +54,9 @@ class Trainer:
     def __select_backbone(self):
         if self.settings["backbone"] == "Simple":
             self.processing_backend = SimpleBackend(self.model)
-        else:
-            pass
+        elif self.settings["backbone"] == "Horovod":
+            print("backbone set to horovod")
+            self.processing_backend = HorovodBackend(self.model)
 
     def fit(
         self,
@@ -124,9 +127,4 @@ class Trainer:
         """
 
         self.processing_backend.setup(self.settings)
-        for epoch in range(self.settings["epochs"]):
-            logging.info("starting epoch {}/{} training step".format(epoch + 1, self.settings["epochs"]))
-            self.processing_backend.train_phase(train_dataset)
-
-            if validation_dataset is not None and (epoch + 1) % self.settings["validation_freq"] == 0:
-                self.processing_backend.validation_phase(validation_dataset)
+        self.processing_backend.train_phase(train_dataset, validation_dataset)
