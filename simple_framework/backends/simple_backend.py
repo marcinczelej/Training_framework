@@ -25,8 +25,6 @@ class SimpleBackend(BackendBase):
         self.global_step = 0
         self.settings = settings
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         self.checkpointer = Checkpoint_saver(
             checkpoints_dir=self.settings["save_path"],
             description=self.settings["description"],
@@ -42,7 +40,7 @@ class SimpleBackend(BackendBase):
 
     def train_step(self, data, step):
         self.optimizer.zero_grad()
-        loss, metrics = self.model.train_step(data.to(self.device))
+        loss, metrics = self.model.train_step(data)
 
         # creating metrics container first time we see it
         if not self.metric_container:
@@ -182,7 +180,7 @@ class SimpleBackend(BackendBase):
                     dl_iter = iter(validation_dataloader)
                     data = next(dl_iter)
 
-                loss, metrics = self.model.train_step(data.to(self.device))
+                loss, metrics = self.model.train_step(data)
 
                 # add to average meter for loss
                 validation_sum_loss.update(loss.item(), self.settings["validation_batch_size"])
