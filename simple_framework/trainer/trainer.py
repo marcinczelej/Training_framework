@@ -10,12 +10,11 @@ import pandas as pd
 from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 
 from torch.utils.tensorboard import SummaryWriter
-from pathlib import Path
 from tqdm import tqdm
 
 from simple_framework.backends.simple_backend import SimpleBackend
 from simple_framework.backends.horovod_backend import HorovodBackend
-
+from simple_framework.callbacks.BaseCallbackClass import CallbackBase
 
 """
 =================================CREATING TRAINER CLASS=================================
@@ -77,6 +76,7 @@ class Trainer:
         validation_metric="loss",
         shuffle=True,
         num_workers=0,
+        callbacks=None,
     ):
         """
         Method used for training model with following parameters:
@@ -127,9 +127,16 @@ class Trainer:
         for _, (key, val) in enumerate(self.settings.items()):
             logging.info(f"{key} : {val}")
 
+        if callbacks is not None:
+            cbck_check = all(isinstance(x, CallbackBase) for x in callbacks)
+
+        if cbck_check is False:
+            logging.error("Wrong callback types provided. They should be of CallbackBase type")
+            return
+
         """
         ========================== TRAINING VALIDATION PHASE ==========================
         """
 
-        self.processing_backend.setup(self.settings)
+        self.processing_backend.setup(self.settings, callbacks)
         self.processing_backend.train_phase(train_dataset, validation_dataset)
