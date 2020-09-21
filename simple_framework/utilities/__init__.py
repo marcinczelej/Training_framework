@@ -1,3 +1,2 @@
-from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
 from simple_framework.utilities.metrics import AverageMeter
 from simple_framework.utilities.schedulers import get_flat_cosine_schedule

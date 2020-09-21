@@ -11,7 +11,6 @@ import os
 import torch
 
 from simple_framework.utilities.metrics import AverageMeter
-from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
 
 from simple_framework.callbacks.CheckpointCallback import CheckpointCallback
 from simple_framework.callbacks.CallbacksHandler import CallbacksHandler
@@ -25,6 +24,7 @@ class SimpleBackend(BackendBase):
         self.optimizer, self.scheduler = self.model.get_optimizer_scheduler()
         self.current_epoch = 0
         self.metric_container = {}
+        self.validation_metrics_container = {}
         self.current_step = 0
         self.global_step = 0
         self.settings = settings
@@ -33,11 +33,7 @@ class SimpleBackend(BackendBase):
 
         self.set_logger()
 
-        self.train_columns = ["epoch", "step", "current_loss"]
-        self.validate_columns = ["epoch"]
-
-        self.train_df = None
-        self.valid_df = pd.DataFrame(columns=["epoch", "loss", "avg_metric"])
+        self.callback_handler.handle(self, self.model, "on_setup")
 
     def train_step(self, data, step):
 
@@ -47,7 +43,7 @@ class SimpleBackend(BackendBase):
 
         # creating metrics container first time we see it
         if not self.metric_container:
-            super().initialize_csv_file(metrics.items())
+            super().initialize_metrics_container(metrics.items())
 
         loss.backward()
 
@@ -63,27 +59,7 @@ class SimpleBackend(BackendBase):
 
         current_loss = self.metric_container["loss"].current
 
-        """super().write_to_tensorboard(metrics.items())
-
-        current_loss = self.metric_container["loss"].current
-        avg_loss = self.metric_container["loss"].avg
-
-        # save best
-        self.checkpointer.should_save_best(
-            metric_value=self.metric_container["loss"].avg, model=self.model, task="train"
-        )
-
-        # adding given step data to csv file
-        new_row = (
-            [self.current_epoch, step, loss.detach().item()]
-            + [metric.avg for metric in self.metric_container.values()]
-            + [super().get_learning_rate()]
-        )
-
-        new_series = pd.Series(new_row, index=self.train_df.columns)
-
-        self.train_df = self.train_df.append(new_series, ignore_index=True)
-        self.train_df.to_csv(os.path.join(self.settings["experiment_path"], "train_logs.csv"), index=False)"""
+        """super().write_to_tensorboard(metrics.items())"""
 
         return current_loss
 
@@ -144,6 +120,8 @@ class SimpleBackend(BackendBase):
 
     def validation_phase(self, dataset: torch.utils.data.Dataset):
 
+        self.callback_handler.handle(self, self.model, "on_validation_epoch_start")
+
         validation_dataloader = torch.utils.data.DataLoader(
             dataset,
             shuffle=False,
@@ -157,16 +135,17 @@ class SimpleBackend(BackendBase):
         epochs = self.settings["epochs"]
         validation_sum_loss = AverageMeter()
         val_metric = AverageMeter()
+        self.validation_metric_container = {}
         self.model.eval()
 
         with torch.no_grad():
-            self.callback_handler.handle(self, self.model, "on_validation_epoch_start")
             dl_iter = iter(validation_dataloader)
 
             pbar = tqdm(range(self.settings["validation_steps"]), dynamic_ncols=True)
 
             for step in pbar:
                 self.current_step = step
+                self.callback_handler.handle(self, self.model, "on_validation_step_start")
                 try:
                     data = next(dl_iter)
                 except StopIteration:
@@ -174,13 +153,15 @@ class SimpleBackend(BackendBase):
                     data = next(dl_iter)
 
                 loss, metrics = self.model.train_step(data)
-                self.callback_handler.handle(self, self.model, "on_validation_step_start")
 
                 # add to average meter for loss
                 validation_sum_loss.update(loss.item(), self.settings["validation_batch_size"])
 
                 # validation metric update
                 val_metric.update(metrics[self.settings["validation_metric"]], self.settings["validation_batch_size"])
+
+                for _, (key, val) in enumerate(metrics.items()):
+                    self.validation_metrics_container[key].update(val, self.settings["batch_size"])
 
                 # set pbar description
                 pbar.set_description(
@@ -192,19 +173,6 @@ class SimpleBackend(BackendBase):
                 )
                 self.callback_handler.handle(self, self.model, "on_validation_step_end")
 
-            # adding given epoch data to csv file
-            new_row = [self.current_epoch, validation_sum_loss.avg, val_metric.avg]
-            new_series = pd.Series(new_row, index=self.valid_df.columns)
-
-            self.valid_df = self.valid_df.append(new_series, ignore_index=True)
-            self.valid_df.to_csv(os.path.join(self.settings["experiment_path"], "validation_logs.csv"), index=False)
             logging.info(f"Validation result metric for epoch {self.current_epoch} = {val_metric.avg}")
 
-            """ # save best
-            self.checkpointer.should_save_best(
-                metric_value=val_metric.avg,
-                checkpoint_name="best_model_validation_{}.pth".format(self.settings["description"]),
-                model=self.model,
-                task="validation",
-            )"""
             self.callback_handler.handle(self, self.model, "on_validation_epoch_end")

@@ -9,7 +9,6 @@ from pathlib import Path
 from simple_framework.trainer.BaseTrainerClass import SimpleFrameworkWrapper
 from typing import Dict
 
-from simple_framework.utilities.checkpoint_saver import Checkpoint_saver
 from simple_framework.utilities.metrics import AverageMeter
 
 from torch.utils.tensorboard import SummaryWriter
@@ -57,13 +56,11 @@ class BackendBase(ABC):
         logger.addHandler(fhandler)
         logger.addHandler(ch)
 
-    def initialize_csv_file(self, metrics_data):
+    def initialize_metrics_container(self, metrics_data):
         for i, (key, val) in enumerate(metrics_data):
-            self.train_columns.append(key)
             self.metric_container[key] = AverageMeter()
+            self.validation_metrics_container[key] = AverageMeter()
             logging.info(f"adding metric {key}")
-        self.train_columns.append("learning_rate")
-        self.train_df = pd.DataFrame(columns=self.train_columns)
 
     def get_learning_rate(self):
         lr = []

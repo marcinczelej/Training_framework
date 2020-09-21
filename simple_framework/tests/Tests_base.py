@@ -75,12 +75,12 @@ def getSimpleDataset():
     )
 
 
-def getParameters():
+def getParameters(backend):
     return {
         "save_path": "/content/simple_f",
         "experiment_path": "/content/simple_f",
         "description": "MNIST",
         "step_scheduler": False,
         "validation_scheduler": False,
-        "backbone": "Simple",
+        "backbone": backend,
     }

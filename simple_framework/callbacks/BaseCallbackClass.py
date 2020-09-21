@@ -30,9 +30,3 @@ class CallbackBase(ABC):
 
     def on_validation_step_end(self, trainer, module):
         pass
-
-    def on_load_checkpoint(self, trainer, checkpoint_path):
-        pass
-
-    def on_save_to_csv(self, trainer):
-        pass
