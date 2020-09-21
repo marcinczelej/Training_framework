@@ -110,7 +110,6 @@ class SimpleBackend(BackendBase):
 
         for epoch in range(self.settings["epochs"]):
             logging.info("starting epoch {}/{} training step".format(epoch + 1, self.settings["epochs"]))
-            # self.checkpointer.set_epoch(self.current_epoch)
             self.train_epoch(train_dataloader)
 
             if validation_dataset is not None and (epoch + 1) % self.settings["validation_freq"] == 0:
