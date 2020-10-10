@@ -59,7 +59,7 @@ class BaseTestModel(SimpleFrameworkWrapper):
         return optimizer, None
 
 
-Path("/content/simple_f").mkdir(parents=True, exist_ok=True)
+Path("simple_f").mkdir(parents=True, exist_ok=True)
 
 
 def getSimpleModel():
@@ -77,8 +77,8 @@ def getSimpleDataset():
 
 def getParameters(backend):
     return {
-        "save_path": "/content/simple_f",
-        "experiment_path": "/content/simple_f",
+        "save_path": "/simple_f",
+        "experiment_path": "simple_f",
         "description": "MNIST",
         "step_scheduler": False,
         "validation_scheduler": False,
